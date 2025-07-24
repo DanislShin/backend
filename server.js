@@ -10,7 +10,14 @@ const app = express();
 // ✅ Render의 동적 포트 사용
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "https://english-review-frontend.netlify.app", // Netlify에서 제공하는 실제 URL
+      "http://localhost:3000", // 로컬 개발용
+    ],
+  })
+);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
