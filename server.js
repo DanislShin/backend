@@ -7,7 +7,8 @@ const { OpenAI } = require("openai");
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+// ✅ Render의 동적 포트 사용
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -42,6 +43,7 @@ app.post("/review", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ 로컬 서버 실행 중: http://localhost:${PORT}`);
+// ✅ Render에서 요구하는 형태로 수정
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ 서버 실행 중: Port ${PORT}`);
 });
