@@ -3,30 +3,31 @@ const path = require("path");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const { OpenAI } = require("openai");
+const supabase = require("./supabase");
 
 dotenv.config();
 
 const app = express();
-// ✅ Render의 동적 포트 사용
 const PORT = process.env.PORT || 3000;
 
 app.use(
   cors({
     origin: [
-      "https://english-review-frontend.netlify.app", // Netlify에서 제공하는 실제 URL
-      "http://localhost:3000", // 로컬 개발용
+      "https://english-review-frontend.netlify.app",
+      "http://localhost:3000",
+      "null",
     ],
   })
 );
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "../frontend")));
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 app.post("/review", async (req, res) => {
-  const { sentence, input } = req.body;
+  const { sentence, input, user_id, module_code } = req.body;
 
   try {
     const prompt = `
@@ -43,6 +44,23 @@ app.post("/review", async (req, res) => {
     });
 
     const feedback = completion.choices[0].message.content;
+
+    // Supabase 저장
+    const { error } = await supabase.from("practice_results").insert([
+      {
+        user_id,
+        module_code,
+        question_text: sentence,
+        user_answer: input,
+        ai_feedback: feedback,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    if (error) {
+      console.error("Supabase 저장 실패:", error);
+    }
+
     res.json({ feedback });
   } catch (error) {
     console.error(error);
@@ -50,7 +68,6 @@ app.post("/review", async (req, res) => {
   }
 });
 
-// ✅ Render에서 요구하는 형태로 수정
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ 서버 실행 중: Port ${PORT}`);
 });
