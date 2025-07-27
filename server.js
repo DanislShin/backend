@@ -11,18 +11,21 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(
-  cors({
-    origin: [
-      "https://bestion.netlify.app",
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "null",
-    ],
-  })
-);
-// 👇 이 줄을 추가해 주세요 (CORS preflight OPTIONS 요청 대응)
-app.options("*", cors());
+const corsOptions = {
+  origin: [
+    "https://bestion.netlify.app",
+    "http://localhost:3000",
+    "http://localhost:5173",
+  ],
+  methods: ["GET", "POST", "OPTIONS"], // OPTIONS 메서드 명시적 허용
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true, // 쿠키/인증 필요 시
+};
+
+app.use(cors(corsOptions));
+
+// 2. OPTIONS 메서드 핸들러 추가 (라우트 전에 위치해야 함)
+app.options("*", cors(corsOptions)); // 모든 OPTIONS 요청 처리
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "frontend", "public")));
