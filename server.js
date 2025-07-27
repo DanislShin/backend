@@ -11,31 +11,16 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://bestion.netlify.app");
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.header("Access-Control-Allow-Credentials", "true");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
-});
-
-const corsOptions = {
-  origin: [
-    "https://bestion.netlify.app",
-    "http://localhost:3000",
-    "http://localhost:5173",
-  ],
-  methods: ["GET", "POST", "OPTIONS"], // OPTIONS 메서드 명시적 허용
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true, // 쿠키/인증 필요 시
-};
-
-app.use(cors(corsOptions));
-
-// 2. OPTIONS 메서드 핸들러 추가 (라우트 전에 위치해야 함)
-app.options("*", cors(corsOptions)); // 모든 OPTIONS 요청 처리
-
+app.use(
+  cors({
+    origin: [
+      "https://bestion.netlify.app",
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "null",
+    ],
+  })
+);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "frontend", "public")));
 
