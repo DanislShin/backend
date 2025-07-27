@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const path = require("path");
 const cors = require("cors");
@@ -13,14 +14,15 @@ const PORT = process.env.PORT || 3000;
 app.use(
   cors({
     origin: [
-      "https://english-review-frontend.netlify.app",
+      "https://bestion.netlify.app",
       "http://localhost:3000",
+      "http://localhost:5173",
       "null",
     ],
   })
 );
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "../frontend")));
+app.use(express.static(path.join(__dirname, "frontend", "public")));
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -32,10 +34,18 @@ app.post("/review", async (req, res) => {
   try {
     const prompt = `
 영어 문장: "${sentence}"
-사용자 해설: "${input}"
+사용자 한글 번역: "${input}"
 
-위 해설이 해당 문장을 정확히 이해했는지 평가해줘. 잘못된 부분이 있다면 정확히 짚어주고, 이해도가 높다면 칭찬과 함께 보완할 점을 알려줘. 한국어로 친절하게 설명해줘.
-`;
+아래 형식으로 한국어로 응답하세요. (JSON만), 총점 피드백에는 올바른 답을 적어주세요.:
+{
+  "문법": { "스코어": 85, "피드백": "..." },
+  "단어 선택 및 문맥": { "스코어": 90, "피드백": "..." },
+  "총점": { "스코어": 88, "피드백": "..." }
+}
+
+반드시 순수 JSON만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
+
+    `;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -43,16 +53,21 @@ app.post("/review", async (req, res) => {
       temperature: 0.4,
     });
 
-    const feedback = completion.choices[0].message.content;
+    const feedbackText = completion.choices[0].message.content;
+    let feedback;
+    try {
+      feedback = JSON.parse(feedbackText);
+    } catch (e) {
+      throw new Error("OpenAI 응답이 JSON 형식이 아님");
+    }
 
-    // Supabase 저장
     const { error } = await supabase.from("practice_results").insert([
       {
         user_id,
         module_code,
         question_text: sentence,
         user_answer: input,
-        ai_feedback: feedback,
+        ai_feedback: JSON.stringify(feedback),
         timestamp: new Date().toISOString(),
       },
     ]);
@@ -65,6 +80,49 @@ app.post("/review", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ feedback: "AI 처리 중 오류가 발생했습니다." });
+  }
+});
+
+// /api/save-result 엔드포인트 (기존 유지)
+app.post("/api/save-result", async (req, res) => {
+  const { user_id, module_code, results } = req.body;
+
+  try {
+    const insertPromises = results.map((result) =>
+      supabase.from("practice_results").insert([
+        {
+          user_id,
+          module_code,
+          question_text: result.question_text,
+          user_answer: result.user_answer,
+          ai_feedback: JSON.stringify({ score: result.score }),
+          timestamp: new Date().toISOString(),
+        },
+      ])
+    );
+
+    const results_array = await Promise.all(insertPromises);
+    const errors = results_array.filter((result) => result.error);
+    if (errors.length > 0) {
+      console.error("Supabase 저장 실패:", errors);
+      return res.status(500).json({
+        success: false,
+        message: "일부 결과 저장에 실패했습니다.",
+      });
+    }
+
+    console.log(`✅ ${results.length}개 결과가 성공적으로 저장되었습니다.`);
+    res.json({
+      success: true,
+      message: "결과가 성공적으로 저장되었습니다.",
+      saved_count: results.length,
+    });
+  } catch (error) {
+    console.error("API 처리 중 오류:", error);
+    res.status(500).json({
+      success: false,
+      message: "서버 오류가 발생했습니다.",
+    });
   }
 });
 
