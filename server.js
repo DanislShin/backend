@@ -21,6 +21,9 @@ app.use(
     ],
   })
 );
+// 👇 이 줄을 추가해 주세요 (CORS preflight OPTIONS 요청 대응)
+app.options("*", cors());
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "frontend", "public")));
 
