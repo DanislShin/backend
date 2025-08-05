@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const path = require("path");
 const cors = require("cors");
@@ -29,7 +28,7 @@ const openai = new OpenAI({
 });
 
 app.post("/review", async (req, res) => {
-  const { sentence, input, user_id, module_code } = req.body;
+  const { sentence, input, user_id, module_code, language } = req.body; // ★ language 추가
 
   try {
     const prompt = `
@@ -43,8 +42,7 @@ app.post("/review", async (req, res) => {
   "총점": { "스코어": 88, "피드백": "..." }
 }
 
-반드시 순수 JSON만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
-
+반드시 순수 JSON만 응답하세요. 다른 텍스트는 절대 포함하지 마세요
     `;
 
     const completion = await openai.chat.completions.create({
@@ -69,6 +67,7 @@ app.post("/review", async (req, res) => {
         user_answer: input,
         ai_feedback: JSON.stringify(feedback),
         timestamp: new Date().toISOString(),
+        language, // ★ language 추가
       },
     ]);
 
@@ -83,9 +82,8 @@ app.post("/review", async (req, res) => {
   }
 });
 
-// /api/save-result 엔드포인트 (기존 유지)
 app.post("/api/save-result", async (req, res) => {
-  const { user_id, module_code, results } = req.body;
+  const { user_id, module_code, results, language } = req.body; // ★ language 추가
 
   try {
     const insertPromises = results.map((result) =>
@@ -97,6 +95,7 @@ app.post("/api/save-result", async (req, res) => {
           user_answer: result.user_answer,
           ai_feedback: JSON.stringify({ score: result.score }),
           timestamp: new Date().toISOString(),
+          language, // ★ language 추가
         },
       ])
     );
@@ -109,6 +108,22 @@ app.post("/api/save-result", async (req, res) => {
         success: false,
         message: "일부 결과 저장에 실패했습니다.",
       });
+    }
+
+    // learning_progress 업데이트
+    const { error: progressError } = await supabase
+      .from("learning_progress")
+      .insert([
+        {
+          user_id,
+          module_code,
+          completed: true,
+          language, // ★ language 추가
+        },
+      ]);
+
+    if (progressError) {
+      console.error("learning_progress 저장 실패:", progressError);
     }
 
     console.log(`✅ ${results.length}개 결과가 성공적으로 저장되었습니다.`);
