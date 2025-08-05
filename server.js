@@ -28,7 +28,14 @@ const openai = new OpenAI({
 });
 
 app.post("/review", async (req, res) => {
-  const { sentence, input, user_id, module_code, language } = req.body; // ★ language 추가
+  const { sentence, input, user_id, module_code, language = "en" } = req.body;
+  console.log("Received request:", {
+    user_id,
+    module_code,
+    sentence,
+    input,
+    language,
+  });
 
   try {
     const prompt = `
@@ -55,35 +62,43 @@ app.post("/review", async (req, res) => {
     let feedback;
     try {
       feedback = JSON.parse(feedbackText);
+      console.log("Parsed feedback:", feedback);
     } catch (e) {
-      throw new Error("OpenAI 응답이 JSON 형식이 아님");
+      console.error("OpenAI JSON 파싱 오류:", e);
+      return res
+        .status(500)
+        .json({ feedback: null, error: "OpenAI 응답 파싱 실패" });
     }
 
-    const { error } = await supabase.from("practice_results").insert([
-      {
-        user_id,
-        module_code,
-        question_text: sentence,
-        user_answer: input,
-        ai_feedback: JSON.stringify(feedback),
-        timestamp: new Date().toISOString(),
-        language, // ★ language 추가
-      },
-    ]);
+    const { data, error } = await supabase
+      .from("practice_results")
+      .insert([
+        {
+          user_id,
+          module_code,
+          question_text: sentence,
+          user_answer: input,
+          ai_feedback: JSON.stringify(feedback),
+          timestamp: new Date().toISOString(),
+          language,
+        },
+      ])
+      .single();
 
     if (error) {
-      console.error("Supabase 저장 실패:", error);
+      console.error("Supabase 삽입 오류:", error);
+      return res.status(500).json({ feedback: null, error: error.message });
     }
 
     res.json({ feedback });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ feedback: "AI 처리 중 오류가 발생했습니다." });
+    console.error("서버 오류:", error);
+    res.status(500).json({ feedback: null, error: error.message });
   }
 });
 
 app.post("/api/save-result", async (req, res) => {
-  const { user_id, module_code, results, language } = req.body; // ★ language 추가
+  const { user_id, module_code, results, language = "en" } = req.body;
 
   try {
     const insertPromises = results.map((result) =>
@@ -95,7 +110,7 @@ app.post("/api/save-result", async (req, res) => {
           user_answer: result.user_answer,
           ai_feedback: JSON.stringify({ score: result.score }),
           timestamp: new Date().toISOString(),
-          language, // ★ language 추가
+          language,
         },
       ])
     );
@@ -110,7 +125,6 @@ app.post("/api/save-result", async (req, res) => {
       });
     }
 
-    // learning_progress 업데이트
     const { error: progressError } = await supabase
       .from("learning_progress")
       .insert([
@@ -118,7 +132,7 @@ app.post("/api/save-result", async (req, res) => {
           user_id,
           module_code,
           completed: true,
-          language, // ★ language 추가
+          language,
         },
       ]);
 
