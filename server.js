@@ -57,7 +57,6 @@ app.post("/review", async (req, res) => {
     const completion = await openai.chat.completions.create({
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.2,
     });
 
     const feedbackText = completion.choices[0].message.content;
